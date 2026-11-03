@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "c2c-agent": {
+      "command": "node",
+      "args": [
+        "C:\\REPO_HOCTAP\\mcp-kit\\src\\server\\mcp-server.js"
+      ],
+      "env": {
+        "PROVIDER": "muse",
+        "MUSE_URL": "https://muse.ai/",
+        "DEEPSEEK_URL": "https://chat.deepseek.com/"
+      }
+    }
+  }
+}

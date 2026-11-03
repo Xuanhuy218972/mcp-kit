@@ -1,0 +1,7 @@
+// src/protocol/states.js
+export const STATES = [
+  "TASK_RECEIVED", "WAITING_FOR_PLAN", "PLAN_APPROVED", "PLAN_REJECTED",
+  "CODING", "REVIEWING", "REVIEW_FAILED", "REVIEW_PASSED",
+  "MAX_ITERATIONS", "ERROR", "DONE",
+];
+export const MAX_ITERATIONS = 5;
