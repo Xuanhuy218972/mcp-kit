@@ -120,9 +120,14 @@ export class MuseAdapter extends ChatProvider {
    * Đợi Muse trả lời xong:
    * 1. Ưu tiên: xuất hiện marker (<<<C2C_END>>>)
    * 2. Hoặc: nút "Dừng" streaming đã biến mất và có chứa STATE hợp lệ
+   * 3. Fallback: nút "Dừng" streaming đã biến mất, text ổn định trong 3000ms liên tiếp (tránh kẹt khi thiếu marker/STATE)
    */
   async waitForAnswer(page, before, { timeoutMs = 300000, marker = C2C_END } = {}) {
     const start = Date.now();
+    let lastLogged = 0;
+    let lastText = '';
+    let stableSince = Date.now();
+
     while (Date.now() - start < timeoutMs) {
       const stopVisible = await page.$(SEL.stop).then(el => !!el).catch(() => false);
       const info = await page.$$eval(SEL.answer, (els) => {
@@ -139,11 +144,32 @@ export class MuseAdapter extends ChatProvider {
         ? (info.id && info.id !== before)
         : (info.n > before);
 
+      const hasMarker = Boolean(info.text && info.text.includes(marker));
+      const hasState = Boolean(info.text && /STATE:\s*(PLAN_APPROVED|PLAN_REJECTED|REVIEW_PASSED|REVIEW_FAILED)/i.test(info.text));
+
+      // Log progress every 30s
+      const elapsed = Math.floor((Date.now() - start) / 1000);
+      if (elapsed - lastLogged >= 30) {
+        lastLogged = elapsed;
+        console.error(`[waitForAnswer] elapsed: ${elapsed}s, answers: ${info.n}, lastId: ${info.id || 'none'}, stopVisible: ${stopVisible}, textLen: ${info.text ? info.text.length : 0}, hasMarker: ${hasMarker}, hasState: ${hasState}`);
+      }
+
       if (isNew && info.text) {
-        if (info.text.includes(marker)) return info.text;
+        if (hasMarker) return info.text;
         // Nếu nút Dừng đã mất và văn bản đã có STATE chuẩn
-        if (!stopVisible && /STATE:\s*(PLAN_APPROVED|PLAN_REJECTED|REVIEW_PASSED|REVIEW_FAILED)/i.test(info.text)) {
+        if (!stopVisible && hasState) {
           return info.text;
+        }
+
+        // Fallback: nút Dừng đã mất, text không đổi trong 3000ms liên tiếp
+        if (!stopVisible) {
+          if (info.text !== lastText) {
+            lastText = info.text;
+            stableSince = Date.now();
+          } else if (Date.now() - stableSince >= 3000) {
+            console.warn(`[waitForAnswer] Warning: returning answer via stable fallback (${info.text.length} chars, no marker/STATE detected)`);
+            return info.text;
+          }
         }
       }
       await sleep(1500);
