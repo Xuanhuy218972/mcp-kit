@@ -24,7 +24,18 @@ async function askWithRetry(providerInstance, page, initialPrompt, task_id, allo
   while (attempts < maxAttempts) {
     const before = await providerInstance.countAnswers(page);
     await providerInstance.sendPrompt(page, prompt);
-    const raw = await providerInstance.waitForAnswer(page, before);
+    let raw;
+    try {
+      raw = await providerInstance.waitForAnswer(page, before);
+    } catch (e) {
+      if (!/TIMEOUT/i.test(e.message)) throw e;
+      if (typeof providerInstance.waitForStableAnswer === "function") {
+        log(task_id, `waitForAnswer timed out, attempting waitForStableAnswer fallback (120s)...`);
+        raw = await providerInstance.waitForStableAnswer(page, before);
+      } else {
+        throw e;
+      }
+    }
     try {
       const msg = parseC2C(raw);
       const errs = validate(msg, { taskId: task_id, allowed: allowedStates });
